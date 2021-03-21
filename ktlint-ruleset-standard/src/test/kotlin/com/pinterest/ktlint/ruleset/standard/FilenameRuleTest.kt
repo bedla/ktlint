@@ -104,6 +104,114 @@ class FilenameRuleTest {
     }
 
     @Test
+    fun testNonMatchingMultipleElementsWithNonPascalCaseFilename() {
+        for (
+            src in listOf(
+                "class A",
+                "class `A`",
+                "data class A(val v: Int)",
+                "sealed class A",
+                "interface A",
+                "object A",
+                "enum class A {A}",
+                "typealias A = Set<Network.Node>",
+                "fun A.f() {}"
+            )
+        ) {
+            assertThat(
+                FilenameRule().lint(
+                    "foo.kt",
+                    """
+                    class Bar
+                    $src
+                    """.trimIndent(),
+                )
+            ).isEqualTo(
+                listOf(
+                    LintError(1, 1, "filename", "File name foo.kt should conform PascalCase")
+                )
+            )
+        }
+    }
+
+    @Test
+    fun testNonMatchingMultipleElementsWithNonPascalCaseFilenamex() {
+        for (
+            src in listOf(
+                "fun A.f() {}",
+                "fun f() {}"
+            )
+        ) {
+            assertThat(
+                FilenameRule().lint(
+                    "foo.kt",
+                    """
+                    $src
+                    """.trimIndent(),
+                )
+            ).isEqualTo(
+                listOf(
+                    LintError(1, 1, "filename", "File name foo.kt should conform PascalCase")
+                )
+            )
+        }
+    }
+
+    @Test
+    fun testMultipleElementsWithNonPascalCaseFilename() {
+        for (
+            src in listOf(
+                "class A",
+                "class `A`",
+                "data class A(val v: Int)",
+                "sealed class A",
+                "interface A",
+                "object A",
+                "enum class A {A}",
+                "typealias A = Set<Network.Node>",
+                "fun A.f() {}"
+            )
+        ) {
+            assertThat(
+                FilenameRule().lint(
+                    "Foo.kt",
+                    """
+                    class Bar
+                    $src
+                    """.trimIndent(),
+                )
+            ).isEmpty()
+        }
+    }
+
+    @Test
+    fun testMultipleElementsInPackageKtFile() {
+        for (
+            src in listOf(
+                "class A",
+                "class `A`",
+                "data class A(val v: Int)",
+                "sealed class A",
+                "interface A",
+                "object A",
+                "enum class A {A}",
+                "typealias A = Set<Network.Node>",
+                "fun A.f() {}"
+            )
+        ) {
+            assertThat(
+                FilenameRule().lint(
+                    "package.kt",
+                    """
+                    class Bar
+                    $src
+                    """.trimIndent(),
+                )
+            ).isEmpty()
+        }
+    }
+
+    @Test
     fun testMultipleNonTopLevelClasses() {
         assertThat(
             FilenameRule().lint(

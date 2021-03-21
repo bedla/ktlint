@@ -4,6 +4,7 @@ import com.pinterest.ktlint.core.KtLint
 import com.pinterest.ktlint.core.Rule
 import com.pinterest.ktlint.core.ast.ElementType.BLOCK_COMMENT
 import com.pinterest.ktlint.core.ast.ElementType.CLASS
+import com.pinterest.ktlint.core.ast.ElementType.DOT
 import com.pinterest.ktlint.core.ast.ElementType.EOL_COMMENT
 import com.pinterest.ktlint.core.ast.ElementType.FILE_ANNOTATION_LIST
 import com.pinterest.ktlint.core.ast.ElementType.IDENTIFIER
@@ -24,17 +25,6 @@ import org.jetbrains.kotlin.com.intellij.psi.tree.IElementType
  */
 class FilenameRule : Rule("filename"), Rule.Modifier.RestrictToRoot {
 
-    private val ignoreSet = setOf<IElementType>(
-        FILE_ANNOTATION_LIST,
-        PACKAGE_DIRECTIVE,
-        IMPORT_LIST,
-        WHITE_SPACE,
-        EOL_COMMENT,
-        BLOCK_COMMENT,
-        KDOC,
-        SHEBANG_COMMENT
-    )
-
     override fun visit(
         node: ASTNode,
         autoCorrect: Boolean,
@@ -45,31 +35,60 @@ class FilenameRule : Rule("filename"), Rule.Modifier.RestrictToRoot {
             // ignore all non ".kt" files (including ".kts")
             return
         }
-        var type: String? = null
-        var className: String? = null
-        for (el in node.getChildren(null)) {
-            if (el.elementType == CLASS ||
+
+        val elements = node.getChildren(null).filterNotNull().filter { el ->
+            el.elementType == CLASS ||
                 el.elementType == OBJECT_DECLARATION ||
-                el.elementType == TYPEALIAS
-            ) {
-                if (className != null) {
-                    // more than one class/object/typealias present
-                    return
-                }
-                val id = el.findChildByType(IDENTIFIER)
-                type = id?.prevCodeSibling()?.text
-                className = id?.text
-            } else if (!ignoreSet.contains(el.elementType)) {
+                el.elementType == TYPEALIAS ||
                 // https://github.com/android/android-ktx/blob/51005889235123f41492eaaecde3c623473dfe95/src/main/java/androidx/core/graphics/Path.kt case
-                return
+                !ignoreSet.contains(el.elementType)
+        }.map { el ->
+            val id = el.findChildByType(IDENTIFIER)
+            val prevCodeSibling = id?.prevCodeSibling()
+            // in case of extension function rename DOT to fun
+            val type = if (prevCodeSibling?.elementType == DOT) "fun" else prevCodeSibling?.text ?: ""
+            val name = id?.text ?: ""
+            ResultElement(type, name)
+        }
+
+        val name = Paths.get(filePath).fileName.toString().substringBefore(".")
+        if (name != "package") {
+            if (elements.size == 1) {
+                val element = elements.first()
+                if (element.type != "fun") {
+                    val (type, className) = element
+                    val unescapedClassName = className.replace("`", "")
+                    if (name != unescapedClassName) {
+                        emit(0, "$type $className should be declared in a file named $unescapedClassName.kt", false)
+                        return
+                    }
+                }
+            }
+
+            // in all other cases (multiple elements, single non-class element, ...) check filename for PascalCase
+            if (!pascalCase.matches(name)) {
+                emit(0, "File name $name.kt should conform PascalCase", false)
             }
         }
-        if (className != null) {
-            val unescapedClassName = className.replace("`", "")
-            val name = Paths.get(filePath).fileName.toString().substringBefore(".")
-            if (name != "package" && name != unescapedClassName) {
-                emit(0, "$type $className should be declared in a file named $unescapedClassName.kt", false)
-            }
-        }
+    }
+
+    private data class ResultElement(
+        val type: String,
+        val name: String
+    )
+
+    companion object {
+        private val ignoreSet = setOf<IElementType>(
+            FILE_ANNOTATION_LIST,
+            PACKAGE_DIRECTIVE,
+            IMPORT_LIST,
+            WHITE_SPACE,
+            EOL_COMMENT,
+            BLOCK_COMMENT,
+            KDOC,
+            SHEBANG_COMMENT
+        )
+
+        private val pascalCase = """^[A-Z][A-Za-z0-9]*$""".toRegex()
     }
 }

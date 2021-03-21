@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fix false positive with lambda argument in super type entry (`indent`) ([#1188](https://github.com/pinterest/ktlint/issues/1188))
 
 ### Changed
+- Detect FilenameRule is not compliant with PascalCase convention ([#1004](https://github.com/pinterest/ktlint/pull/1117))
 
 ### Removed
 
